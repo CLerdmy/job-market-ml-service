@@ -1,0 +1,24 @@
+[project]
+name = "job-market-ml-service"
+version = "0.0.1"
+description = "ML service for job market analytics and salary prediction"
+authors = [
+  { name="Podturov Pavel", email="podturov@gmail.com" },
+]
+readme = {file = "README.md", content-type = "text/markdown" }
+
+requires-python = ">=3.12"
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "fastapi==0.128.0",
+    "numpy==2.4.1",
+    "pandas==3.0.0",
+    "scikit-learn==1.8.0",
+    "loguru==0.7.3"
+]
