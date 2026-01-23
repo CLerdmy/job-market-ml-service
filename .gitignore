@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environment
+.venv/
+venv/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Data
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+
+# Models
+models/*.pkl
+models/*.cbm
+models/*.bin
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Logs
+logs/
+*.log
