@@ -21,6 +21,7 @@ dependencies = [
     "uvicorn==0.40.0",
     "numpy==2.4.1",
     "pandas==3.0.0",
+    "polars==1.37.1",
     "scikit-learn==1.8.0",
     "loguru==0.7.3"
 ]
