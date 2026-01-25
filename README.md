@@ -1,2 +1,2 @@
-https://www.kaggle.com/datasets/ravindrasinghrana/job-description-dataset
-
+https://www.kaggle.com/datasets/shaistashahid/job-market-insight
+https://www.kaggle.com/datasets/ruchi798/data-science-job-salaries
