@@ -1,3 +1,4 @@
+from typing import Any, Dict, Optional
 import polars as pl
 
 def drop_unused_columns(df: pl.DataFrame, dataset: str) -> pl.DataFrame:
@@ -132,18 +133,79 @@ def preprocess_skills(df: pl.DataFrame) -> pl.DataFrame:
 
     return df_skills.drop(tmp).drop(column)
 
-def preprocess(df: pl.DataFrame, dataset: str) -> pl.DataFrame:
+def apply_mte(df: pl.DataFrame, mte: Dict[str, Dict[Any, float]]) -> pl.DataFrame:
     result = df
+    for col, mapping in mte.items():
+        result = result.with_columns(
+            pl.col(col).replace(mapping, default=None).alias(f"{col}_mte")
+        )
+    return result
+
+def use_salary_predictor_columns(df: pl.DataFrame) -> pl.DataFrame:
+    model_features = [
+        'job_type_Full_time', 'job_type_Full-time', 'job_type_Internship',
+        'job_type_Part-time', 'job_type_Remote', 'job_type_Unknown',
+        'job_type_Working_student', 'job_type_berufseinstieg',
+        'job_type_berufserfahren', 'job_type_manager',
+        'job_type_professional_/_experienced', 'category_HR',
+        'category_Helpdesk', 'category_Marketing_and_Communication',
+        'category_Media_Planning', 'category_Process_Engineering',
+        'category_Recruitment_and_Selection', 'category_Remote',
+        'category_SAP/ERP_Consulting', 'category_Social_Media_Manager',
+        'category_Software_Development', 'category_Technology',
+        'category_Unknown', 'job_title_mte', 'company_mte', 'location_mte',
+        'backend_skills', 'frontend_skills', 'db_skills', 'ml_skills',
+        'infra_skills', 'tools_skills', 'skill_count', 'experience_sq',
+        'experience_log'
+    ]
+    
+    result = df
+
+    result = result.select([c for c in model_features if c in result.columns])
+    
+    missing_cols = [c for c in model_features if c not in result.columns]
+    if missing_cols:
+        zeros_df = pl.DataFrame({c: [0] * result.height for c in missing_cols})
+        result = result.hstack(zeros_df)
+
+    result = result.select(model_features)
+
+    return result
+    
+
+def preprocess(df: pl.DataFrame, dataset: str, mte: Optional[Dict[str, Dict[Any, float]]] = None, train: bool = True) -> pl.DataFrame:
+    result = df
+
+    if not train:
+        column_mapping = {
+            "experience": "experience_required",
+            "work_type": "job_type"
+        }
+        existing_columns = [c for c in column_mapping if c in result.columns]
+        if existing_columns:
+            result = result.rename({c: column_mapping[c] for c in existing_columns})
 
     match dataset:
         case "job_market":
-            result = drop_unused_columns(result, dataset)
-            result = clean_outliers(result, dataset)
-            result = handle_nulls(result, dataset)
-            result = add_salary_mean(result)
-            result = one_hot_encode(result, dataset)
-            result = mean_target_encode(result, dataset)
-            result = preprocess_skills(result)
+            if train:
+                result = drop_unused_columns(result, dataset)
+                result = clean_outliers(result, dataset)
+                result = handle_nulls(result, dataset)
+                result = add_salary_mean(result)
+                result = one_hot_encode(result, dataset)
+                if mte is None:
+                    result = mean_target_encode(result, dataset)
+                else:
+                    result = apply_mte(result, mte)
+                result = preprocess_skills(result)
+
+            elif not train:
+                result = handle_nulls(result, dataset)
+                result = one_hot_encode(result, dataset)
+                if mte is not None:
+                    result = apply_mte(result, mte)
+                result = preprocess_skills(result)
+
         case _:
             pass
 
