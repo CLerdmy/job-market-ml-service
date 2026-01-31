@@ -15,13 +15,16 @@ def _get_skills_groups() -> dict:
 def aggregate_skills(df: pl.DataFrame) -> pl.DataFrame:
     skill_groups = _get_skills_groups()
 
-    agg_exprs = [
-        pl.sum_horizontal([pl.col(c) for c in skills]).alias(group)
+    all_skills = [skill for skills in skill_groups.values() for skill in skills]
+    missing_skills = [c for c in all_skills if c not in df.columns]
+    if missing_skills:
+        df = df.with_columns([pl.lit(0).cast(pl.Int8).alias(c) for c in missing_skills])
+
+    df = df.with_columns([
+        pl.sum_horizontal([pl.col(skill) for skill in skills]).alias(group)
         for group, skills in skill_groups.items()
-    ]
-    
-    df = df.with_columns(agg_exprs)
-    
+    ])
+
     return df
 
 def add_skill_count(df: pl.DataFrame) -> pl.DataFrame:
@@ -29,9 +32,9 @@ def add_skill_count(df: pl.DataFrame) -> pl.DataFrame:
 
     all_skills = [skill for skills in skill_groups.values() for skill in skills]
 
-    df = df.with_columns(
+    df = df.with_columns([
         pl.sum_horizontal([pl.col(c) for c in all_skills]).alias("skill_count")
-    )
+    ])
 
     return df
 
@@ -39,7 +42,7 @@ def add_experience_features(df: pl.DataFrame) -> pl.DataFrame:
     return df.with_columns([
         (pl.col("experience_required") ** 2).alias("experience_sq"),
         pl.col("experience_required")
-          .map_elements(np.log1p)
+          .log1p()
           .alias("experience_log")
     ])
 
