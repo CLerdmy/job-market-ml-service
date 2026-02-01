@@ -1,24 +1,30 @@
 from typing import Any, Dict, Optional
+
 import polars as pl
 
+
 def drop_unused_columns(df: pl.DataFrame, dataset: str) -> pl.DataFrame:
-    config = {
-        "job_market": ["publication_date"]
-    }
+    config = {"job_market": ["publication_date"]}
     return df.drop(config.get(dataset, []))
 
-def _remove_outliers_iqr(df: pl.DataFrame, column: str, threshold: float = 1.5) -> pl.DataFrame:
+
+def _remove_outliers_iqr(
+    df: pl.DataFrame, column: str, threshold: float = 1.5
+) -> pl.DataFrame:
     return df.filter(
         pl.col(column).is_between(
-            pl.col(column).quantile(0.25) - threshold * (pl.col(column).quantile(0.75) - pl.col(column).quantile(0.25)),
-            pl.col(column).quantile(0.75) + threshold * (pl.col(column).quantile(0.75) - pl.col(column).quantile(0.25))
+            pl.col(column).quantile(0.25)
+            - threshold
+            * (pl.col(column).quantile(0.75) - pl.col(column).quantile(0.25)),
+            pl.col(column).quantile(0.75)
+            + threshold
+            * (pl.col(column).quantile(0.75) - pl.col(column).quantile(0.25)),
         )
     )
 
+
 def clean_outliers(df: pl.DataFrame, dataset: str) -> pl.DataFrame:
-    config = {
-        "job_market": ["salary_max", "salary_min"]
-    }
+    config = {"job_market": ["salary_max", "salary_min"]}
 
     result = df
 
@@ -27,11 +33,12 @@ def clean_outliers(df: pl.DataFrame, dataset: str) -> pl.DataFrame:
 
     return result
 
+
 def handle_nulls(df: pl.DataFrame, dataset: str) -> pl.DataFrame:
     config = {
         "job_market": {
             "categorical": ["job_type", "category"],
-            "numeric": ["experience_required"]
+            "numeric": ["experience_required"],
         }
     }
 
@@ -43,31 +50,26 @@ def handle_nulls(df: pl.DataFrame, dataset: str) -> pl.DataFrame:
     exprs = []
 
     for col in cfg.get("categorical", []):
-        exprs.append(
-            pl.col(col).fill_null("Unknown")
-        )
+        exprs.append(pl.col(col).fill_null("Unknown"))
 
     for col in cfg.get("numeric", []):
-        exprs.append(
-            pl.col(col).fill_null(pl.col(col).median())
-        )
+        exprs.append(pl.col(col).fill_null(pl.col(col).median()))
 
     return df.with_columns(exprs)
 
+
 def add_salary_mean(df: pl.DataFrame) -> pl.DataFrame:
-    return df.with_columns([
-        ((pl.col("salary_min") + pl.col("salary_max")) / 2).alias("salary_mean")
-    ]).drop(["salary_min", "salary_max"])
+    return df.with_columns(
+        [((pl.col("salary_min") + pl.col("salary_max")) / 2).alias("salary_mean")]
+    ).drop(["salary_min", "salary_max"])
+
 
 def one_hot_encode(df: pl.DataFrame, dataset: str) -> pl.DataFrame:
-    config = {
-        "job_market": ["job_type", "category"]
-    }
-    
+    config = {"job_market": ["job_type", "category"]}
+
     result = df
 
     for col in config.get(dataset, []):
-
         dummies = result.select(pl.col(col)).to_dummies()
         dummy_cols = dummies.columns
         if len(dummy_cols) > 1:
@@ -77,27 +79,22 @@ def one_hot_encode(df: pl.DataFrame, dataset: str) -> pl.DataFrame:
 
     return result
 
+
 def mean_target_encode(df: pl.DataFrame, dataset: str) -> pl.DataFrame:
-    config = {
-        "job_market": [["salary_mean"], ["job_title", "company", "location"]]
-    }
-    
+    config = {"job_market": [["salary_mean"], ["job_title", "company", "location"]]}
+
     target_col = config.get(dataset, [])[0]
     result = df
 
     for col in config.get(dataset, [])[1]:
-
-        mean_table = (
-            result.group_by(col)
-              .agg(pl.col(target_col).mean().alias(f"{col}_mte"))
+        mean_table = result.group_by(col).agg(
+            pl.col(target_col).mean().alias(f"{col}_mte")
         )
 
-        result = (
-            result.join(mean_table, on=col, how="left")
-              .drop(col)
-        )
+        result = result.join(mean_table, on=col, how="left").drop(col)
 
     return result
+
 
 def preprocess_skills(df: pl.DataFrame) -> pl.DataFrame:
     column = "skills"
@@ -105,18 +102,13 @@ def preprocess_skills(df: pl.DataFrame) -> pl.DataFrame:
     tmp = "_skills_list"
 
     df_skills = df.with_columns(
-        pl.col(column)
-        .fill_null("")
-        .str.strip_chars('" ')
-        .str.split(sep)
-        .alias(tmp)
+        pl.col(column).fill_null("").str.strip_chars('" ').str.split(sep).alias(tmp)
     )
 
     all_skills = (
-        df_skills
-        .select(pl.col(tmp).explode())
+        df_skills.select(pl.col(tmp).explode())
         .with_columns(pl.col(tmp).str.strip_chars())
-        .filter(pl.col(tmp) != "") 
+        .filter(pl.col(tmp) != "")
         .unique()
         .to_series()
         .to_list()
@@ -133,6 +125,7 @@ def preprocess_skills(df: pl.DataFrame) -> pl.DataFrame:
 
     return df_skills.drop(tmp).drop(column)
 
+
 def apply_mte(df: pl.DataFrame, mte: Dict[str, Dict[Any, float]]) -> pl.DataFrame:
     result = df
     for col, mapping in mte.items():
@@ -141,28 +134,50 @@ def apply_mte(df: pl.DataFrame, mte: Dict[str, Dict[Any, float]]) -> pl.DataFram
         )
     return result
 
+
 def use_salary_predictor_columns(df: pl.DataFrame) -> pl.DataFrame:
     model_features = [
-        'job_type_Full_time', 'job_type_Full-time', 'job_type_Internship',
-        'job_type_Part-time', 'job_type_Remote', 'job_type_Unknown',
-        'job_type_Working_student', 'job_type_berufseinstieg',
-        'job_type_berufserfahren', 'job_type_manager',
-        'job_type_professional_/_experienced', 'category_HR',
-        'category_Helpdesk', 'category_Marketing_and_Communication',
-        'category_Media_Planning', 'category_Process_Engineering',
-        'category_Recruitment_and_Selection', 'category_Remote',
-        'category_SAP/ERP_Consulting', 'category_Social_Media_Manager',
-        'category_Software_Development', 'category_Technology',
-        'category_Unknown', 'job_title_mte', 'company_mte', 'location_mte',
-        'backend_skills', 'frontend_skills', 'db_skills', 'ml_skills',
-        'infra_skills', 'tools_skills', 'skill_count', 'experience_sq',
-        'experience_log'
+        "job_type_Full_time",
+        "job_type_Full-time",
+        "job_type_Internship",
+        "job_type_Part-time",
+        "job_type_Remote",
+        "job_type_Unknown",
+        "job_type_Working_student",
+        "job_type_berufseinstieg",
+        "job_type_berufserfahren",
+        "job_type_manager",
+        "job_type_professional_/_experienced",
+        "category_HR",
+        "category_Helpdesk",
+        "category_Marketing_and_Communication",
+        "category_Media_Planning",
+        "category_Process_Engineering",
+        "category_Recruitment_and_Selection",
+        "category_Remote",
+        "category_SAP/ERP_Consulting",
+        "category_Social_Media_Manager",
+        "category_Software_Development",
+        "category_Technology",
+        "category_Unknown",
+        "job_title_mte",
+        "company_mte",
+        "location_mte",
+        "backend_skills",
+        "frontend_skills",
+        "db_skills",
+        "ml_skills",
+        "infra_skills",
+        "tools_skills",
+        "skill_count",
+        "experience_sq",
+        "experience_log",
     ]
-    
+
     result = df
 
     result = result.select([c for c in model_features if c in result.columns])
-    
+
     missing_cols = [c for c in model_features if c not in result.columns]
     if missing_cols:
         zeros_df = pl.DataFrame({c: [0] * result.height for c in missing_cols})
@@ -171,16 +186,18 @@ def use_salary_predictor_columns(df: pl.DataFrame) -> pl.DataFrame:
     result = result.select(model_features)
 
     return result
-    
 
-def preprocess(df: pl.DataFrame, dataset: str, mte: Optional[Dict[str, Dict[Any, float]]] = None, train: bool = True) -> pl.DataFrame:
+
+def preprocess(
+    df: pl.DataFrame,
+    dataset: str,
+    mte: Optional[Dict[str, Dict[Any, float]]] = None,
+    train: bool = True,
+) -> pl.DataFrame:
     result = df
 
     if not train:
-        column_mapping = {
-            "experience": "experience_required",
-            "work_type": "job_type"
-        }
+        column_mapping = {"experience": "experience_required", "work_type": "job_type"}
         existing_columns = [c for c in column_mapping if c in result.columns]
         if existing_columns:
             result = result.rename({c: column_mapping[c] for c in existing_columns})
