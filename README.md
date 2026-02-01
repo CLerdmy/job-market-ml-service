@@ -5,6 +5,18 @@ The project is designed to predict **various job-related characteristics**, incl
 
 ---
 
+## Notebooks Workflow
+
+The `notebooks/` directory contains the full exploratory and experimental workflow:
+
+- **01_eda.ipynb:** exploratory data analysis and data understanding.
+- **02_data_preprocessing.ipynb:** data cleaning, handling missing values, and basic transformations.
+- **03_feature_engineering.ipynb:** creating new features, aggregation and transformation of existing ones.
+- **04_model_training.ipynb:** model training and hyperparameter tuning.
+- **05_evaluation.ipynb:** model validation and performance analysis.
+
+---
+
 ## Salary Prediction
 
 The currently implemented component of the project is **Salary Prediction**:
@@ -27,8 +39,8 @@ The model uses the following job attributes as input:
 
 **API Endpoints:**
 
-- `POST /predict` — returns predicted salary
-- `GET /health` — service health check
+- `POST /predict`: returns predicted salary
+- `GET /health`: service health check
 
 ---
 
